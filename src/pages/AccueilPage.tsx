@@ -19,13 +19,12 @@ export const AccueilPage: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scenarioFeedback, setScenarioFeedback] = useState<string | null>(null);
 
-  // Calculate live dynamic KPIs from actual store
+  // Calculate live dynamic KPIs from actual store (Section 4: No TVA)
   const totalStockValue = products.reduce((acc, p) => acc + p.currentStock * p.costPrice, 0);
   const totalRefs = products.length;
-  const totalSalesRevenue = sales.reduce((acc, s) => acc + s.totalTTC, 0);
+  const totalSalesRevenue = sales.reduce((acc, s) => acc + s.totalAmount, 0);
   const totalMargin = sales.reduce((acc, s) => acc + s.margin, 0);
-  const totalSubtotal = sales.reduce((acc, s) => acc + s.subtotal, 0);
-  const calculatedMarginRate = totalSubtotal > 0 ? ((totalMargin / totalSubtotal) * 100).toFixed(1) : '32.4';
+  const calculatedMarginRate = totalSalesRevenue > 0 ? ((totalMargin / totalSalesRevenue) * 100).toFixed(1) : '32.4';
   const totalUnpaidBalance = customers.reduce((acc, c) => acc + c.balance, 0);
   const lateCustomersCount = customers.filter((c) => c.balance > 0).length;
 

@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS public.sites (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. Sales & Invoices
+-- 5. Sales & Invoices (Sans TVA)
 CREATE TABLE IF NOT EXISTS public.sales (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   invoice_number TEXT UNIQUE NOT NULL,
@@ -107,17 +107,31 @@ CREATE TABLE IF NOT EXISTS public.sales (
   site_id UUID REFERENCES public.sites ON DELETE SET NULL,
   sale_date DATE DEFAULT CURRENT_DATE,
   subtotal NUMERIC(15, 2) NOT NULL,
-  vat NUMERIC(15, 2) NOT NULL,
-  total_ttc NUMERIC(15, 2) NOT NULL,
+  total_amount NUMERIC(15, 2) NOT NULL,
   total_cost NUMERIC(15, 2) NOT NULL,
   margin NUMERIC(15, 2) NOT NULL,
   margin_rate NUMERIC(5, 2) NOT NULL,
   payment_status TEXT DEFAULT 'Payée' CHECK (payment_status IN ('Payée', 'Partiel', 'En retard', 'Devis validé')),
   deposit_paid NUMERIC(15, 2) DEFAULT 0,
+  remaining_due NUMERIC(15, 2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Stock Movements (Audit Trail)
+-- 6. Sale Items (Articles de vente & Sérialisation multiple)
+CREATE TABLE IF NOT EXISTS public.sale_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sale_id UUID REFERENCES public.sales ON DELETE CASCADE,
+  product_id UUID REFERENCES public.products ON DELETE RESTRICT,
+  quantity NUMERIC(15, 2) NOT NULL,
+  unit TEXT NOT NULL,
+  unit_price NUMERIC(15, 2) NOT NULL,
+  unit_cost NUMERIC(15, 2) NOT NULL,
+  equipment_ids TEXT[],
+  serial_numbers TEXT[],
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Stock Movements (Audit Trail)
 CREATE TABLE IF NOT EXISTS public.stock_movements (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   movement_date TIMESTAMPTZ DEFAULT NOW(),
@@ -139,10 +153,13 @@ ALTER TABLE public.equipments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow authenticated read products" ON public.products FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authenticated write products" ON public.products FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated read sales" ON public.sales FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated write sales" ON public.sales FOR ALL USING (auth.role() = 'authenticated');
 `;
 
     const blob = new Blob([sqlSchema], { type: 'text/sql' });

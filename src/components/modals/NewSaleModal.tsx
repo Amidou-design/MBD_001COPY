@@ -82,16 +82,17 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose }) =
     );
   };
 
-  // Calculations
-  const subtotalHT = items.reduce((acc, it) => acc + it.quantity * it.unitPrice, 0);
-  const tva = Math.round(subtotalHT * 0.18);
-  const totalTTC = subtotalHT + tva;
+  // Calculations (Section 4: No TVA)
+  const totalSale = items.reduce((acc, it) => acc + it.quantity * it.unitPrice, 0);
   const totalCost = items.reduce((acc, it) => {
     const prod = products.find((p) => p.id === it.productId);
     return acc + it.quantity * (prod?.costPrice || 0);
   }, 0);
-  const margin = subtotalHT - totalCost;
-  const marginRate = subtotalHT > 0 ? Number(((margin / subtotalHT) * 100).toFixed(1)) : 0;
+  const margin = totalSale - totalCost;
+  const marginRate = totalSale > 0 ? Number(((margin / totalSale) * 100).toFixed(1)) : 0;
+  const remainingDue = paymentStatus === 'Partiel'
+    ? Math.max(0, totalSale - depositAmount)
+    : (paymentStatus === 'Payée' ? 0 : totalSale);
 
   const handleValidateSale = () => {
     setStockError(null);
@@ -301,7 +302,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose }) =
                   <label className="block text-[11px] text-[#64748B] mb-1">Devise & Régime Fiscal</label>
                   <div className="p-2.5 bg-[#F1F5F9] rounded-lg font-mono text-xs flex justify-between">
                     <span>Franc CFA (XOF / FCFA)</span>
-                    <span className="font-bold text-[#006a6a]">TVA 18% Applicable</span>
+                    <span className="font-bold text-[#006a6a]">Facturation Directe HT (Sans TVA)</span>
                   </div>
                 </div>
               </div>
@@ -400,6 +401,36 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose }) =
                               )}
                             </div>
                           )}
+
+                          {/* Affichage des numéros de série alloués (Section 6) */}
+                          {product?.trackType === 'SERIALIZED' && (
+                            <div className="mt-2 pt-1.5 border-t border-slate-100">
+                              <div className="flex items-center gap-1 text-[10px] text-[#64748B] font-medium">
+                                <span className="material-symbols-outlined text-[13px] text-[#002452]">qr_code_2</span>
+                                <span>Unités sérialisées gérées ({item.quantity}) :</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {(() => {
+                                  const availableInStock = equipments.filter(
+                                    (e) => e.productId === item.productId && e.status === 'EN STOCK'
+                                  );
+                                  return Array.from({ length: item.quantity }).map((_, u) => {
+                                    const eq = availableInStock[u];
+                                    const sn = eq?.serialNumber || `SN-${product.reference}-${u + 1}`;
+                                    return (
+                                      <span
+                                        key={u}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#EEF4FF] text-[#002452] font-mono text-[9px] font-semibold border border-[#002452]/10"
+                                      >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#1B3A6B]"></span>
+                                        {sn}
+                                      </span>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -430,22 +461,22 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose }) =
                 <span>Ajouter un équipement ou service</span>
               </button>
 
-              {/* Synthèse des montants */}
+              {/* Synthèse des montants (Sans TVA - Section 4) */}
               <div className="space-y-1.5 pt-2 border-t border-[#E2E8F0] text-xs">
-                <div className="flex items-center justify-between text-[#64748B]">
-                  <span>Sous-total HT</span>
-                  <span className="font-medium text-[#1A1A2E]">{subtotalHT.toLocaleString('fr-FR')} FCFA</span>
-                </div>
-                <div className="flex items-center justify-between text-[#64748B]">
-                  <span>TVA (18%)</span>
-                  <span className="font-medium text-[#1A1A2E]">{tva.toLocaleString('fr-FR')} FCFA</span>
-                </div>
-                <div className="flex items-center justify-between pt-1.5 border-t border-[#E2E8F0]/80">
-                  <span className="font-display font-bold text-sm text-[#1A1A2E]">Total TTC</span>
+                <div className="flex items-center justify-between pt-1 border-t border-[#E2E8F0]/80">
+                  <span className="font-display font-bold text-sm text-[#1A1A2E]">Total de la vente</span>
                   <span className="font-display font-bold text-lg text-[#1B3A6B]">
-                    {totalTTC.toLocaleString('fr-FR')} FCFA
+                    {totalSale.toLocaleString('fr-FR')} FCFA
                   </span>
                 </div>
+                {paymentStatus === 'Partiel' && (
+                  <div className="flex items-center justify-between text-[#64748B] text-[11px] pt-0.5">
+                    <span>Acompte : {depositAmount.toLocaleString('fr-FR')} FCFA</span>
+                    <span className="font-bold text-[#92400E]">
+                      Reste à payer : {remainingDue.toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
+                )}
                 {/* Marge calculée en direct */}
                 <div className="pt-1 flex items-center justify-between text-[11px] bg-[#E6F4F1] px-2.5 py-1 rounded-lg text-[#0A7A6E] font-medium">
                   <span>Marge brute générée :</span>
@@ -491,7 +522,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose }) =
             </div>
           )}
 
-          {/* STEP 6: APERÇU */}
+          {/* STEP 6: APERÇU (Section 4: No TVA) */}
           {step === 6 && (
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 space-y-3 text-xs">
               <h3 className="font-display font-bold text-sm text-[#002452]">Aperçu final avant validation</h3>
@@ -499,8 +530,15 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({ isOpen, onClose }) =
                 <p><strong>Client :</strong> {currentCustomer.name}</p>
                 <p><strong>Site :</strong> {currentSite?.name || 'Siège principal'}</p>
                 <p><strong>Articles :</strong> {items.length} lignes</p>
-                <p><strong>Total Facturé :</strong> {totalTTC.toLocaleString('fr-FR')} FCFA</p>
-                <p><strong>Statut :</strong> <span className="font-bold text-[#006a6a]">{paymentStatus}</span></p>
+                <p><strong>Total de la vente :</strong> {totalSale.toLocaleString('fr-FR')} FCFA</p>
+                {paymentStatus === 'Partiel' && (
+                  <>
+                    <p><strong>Acompte perçu :</strong> {depositAmount.toLocaleString('fr-FR')} FCFA</p>
+                    <p><strong>Reste à payer :</strong> <span className="font-bold text-[#92400E]">{remainingDue.toLocaleString('fr-FR')} FCFA</span></p>
+                  </>
+                )}
+                <p><strong>Marge estimée :</strong> <span className="font-bold text-[#006a6a]">{margin.toLocaleString('fr-FR')} FCFA ({marginRate}%)</span></p>
+                <p><strong>Statut :</strong> <span className="font-bold text-[#002452]">{paymentStatus}</span></p>
               </div>
             </div>
           )}

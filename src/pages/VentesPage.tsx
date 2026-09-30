@@ -6,11 +6,10 @@ export const VentesPage: React.FC = () => {
   const { sales, navigate } = useApp();
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
 
-  // Dynamic Metrics
-  const totalRevenue = sales.reduce((acc, s) => acc + s.totalTTC, 0);
+  // Dynamic Metrics (Section 4: No TVA)
+  const totalRevenue = sales.reduce((acc, s) => acc + s.totalAmount, 0);
   const totalMargin = sales.reduce((acc, s) => acc + s.margin, 0);
-  const totalSubtotal = sales.reduce((acc, s) => acc + s.subtotal, 0);
-  const marginPercentage = totalSubtotal > 0 ? ((totalMargin / totalSubtotal) * 100).toFixed(1) : '32.4';
+  const marginPercentage = totalRevenue > 0 ? ((totalMargin / totalRevenue) * 100).toFixed(1) : '32.4';
 
   return (
     <div className="flex flex-col w-full max-w-screen-md mx-auto px-4 py-4 gap-4">
@@ -123,17 +122,17 @@ export const VentesPage: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Bottom Financial Details */}
+                {/* Bottom Financial Details (Section 4) */}
                 <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between">
                   {isPartiel && sale.depositPaid ? (
                     <span className="font-mono text-[11px] text-[#64748B]">
-                      Acompte reçu: {sale.depositPaid.toLocaleString('fr-FR')} FCFA
+                      Acompte: {sale.depositPaid.toLocaleString('fr-FR')} F • Reste: {(sale.remainingDue ?? (sale.totalAmount - (sale.depositPaid || 0))).toLocaleString('fr-FR')} F
                     </span>
                   ) : (
-                    <span className="text-xs text-[#64748B]">Montant total</span>
+                    <span className="text-xs text-[#64748B]">Montant de la vente</span>
                   )}
                   <span className="font-display font-bold text-sm text-[#002452]">
-                    {sale.totalTTC.toLocaleString('fr-FR')} FCFA
+                    {sale.totalAmount.toLocaleString('fr-FR')} FCFA
                   </span>
                 </div>
               </article>

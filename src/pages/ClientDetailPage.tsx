@@ -342,7 +342,7 @@ export const ClientDetailPage: React.FC = () => {
                     <p className="text-[11px] text-[#64748B] mt-0.5">{s.date}</p>
                   </div>
                   <span className="font-display font-bold text-xs text-[#002452]">
-                    {s.totalTTC.toLocaleString('fr-FR')} FCFA
+                    {s.totalAmount.toLocaleString('fr-FR')} FCFA
                   </span>
                 </div>
               ))

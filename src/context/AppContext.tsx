@@ -455,6 +455,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       quantity: number;
       unitPrice: number;
       equipmentId?: string;
+      equipmentIds?: string[];
     }[];
     paymentStatus?: 'Payée' | 'Partiel' | 'En retard' | 'Devis validé';
     depositPaid?: number;
@@ -498,6 +499,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subtotal += itemSubtotal;
       totalCost += itemCost;
 
+      const allocatedIds: string[] = [];
+      const allocatedSerials: string[] = [];
+
       // Update physical inventory
       if (product.trackType === 'QUANTIFIED') {
         updatedProducts[prodIdx].currentStock = Math.max(0, product.currentStock - item.quantity);
@@ -513,54 +517,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           destLocation: customer.name + (site ? ` (${site.name})` : ''),
           reference: invoiceNum,
           operator: 'Amidou Ouedraogo',
-          comment: `Sortie vente: -${item.quantity} ${product.unit}`,
+          comment: `Sortie vente quantifié: -${item.quantity} ${product.unit}`,
         });
       } else if (product.trackType === 'SERIALIZED') {
+        // Decrease product counter
         updatedProducts[prodIdx].currentStock = Math.max(0, product.currentStock - item.quantity);
 
-        // If specific equipment or pick first available
-        let targetEq: Equipment | undefined;
-        if (item.equipmentId) {
-          targetEq = updatedEquipments.find((e) => e.id === item.equipmentId);
-        } else {
-          targetEq = updatedEquipments.find((e) => e.productId === product.id && e.status === 'EN STOCK');
-        }
+        // Section 6: Manage distinct serialized equipments for each unit
+        for (let u = 0; u < item.quantity; u++) {
+          let targetEq: Equipment | undefined;
+          if (item.equipmentIds && item.equipmentIds[u]) {
+            targetEq = updatedEquipments.find((e) => e.id === item.equipmentIds![u]);
+          } else if (u === 0 && item.equipmentId) {
+            targetEq = updatedEquipments.find((e) => e.id === item.equipmentId);
+          } else {
+            targetEq = updatedEquipments.find(
+              (e) => e.productId === product.id && e.status === 'EN STOCK' && !allocatedIds.includes(e.id)
+            );
+          }
 
-        if (targetEq) {
-          const eqIdx = updatedEquipments.findIndex((e) => e.id === targetEq!.id);
-          updatedEquipments[eqIdx] = {
-            ...targetEq,
-            status: 'VENDU',
-            customerId: customer.id,
-            customerName: customer.name,
-            siteId: site?.id,
-            siteName: site?.name,
-            history: [
-              ...(targetEq.history || []),
-              {
-                date: 'Aujourd’hui',
-                event: `Vendu à ${customer.name} (Facture ${invoiceNum})`,
-                operator: 'Amidou Ouedraogo',
-              },
-            ],
-          };
+          if (targetEq) {
+            const eqIdx = updatedEquipments.findIndex((e) => e.id === targetEq!.id);
+            allocatedIds.push(targetEq.id);
+            allocatedSerials.push(targetEq.serialNumber);
 
-          newMovements.push({
-            id: `MVT-S-${Date.now()}-${idx}`,
-            date: 'Aujourd’hui',
-            type: 'VENTE',
-            productId: product.id,
-            productName: product.name,
-            equipmentId: targetEq.id,
-            serialNumber: targetEq.serialNumber,
-            quantity: 1,
-            unit: product.unit,
-            sourceLocation: 'Dépôt Central Somgandé',
-            destLocation: customer.name,
-            reference: invoiceNum,
-            operator: 'Amidou Ouedraogo',
-            comment: `Sortie équipement sérialisé ${targetEq.serialNumber}`,
-          });
+            updatedEquipments[eqIdx] = {
+              ...targetEq,
+              status: 'VENDU',
+              customerId: customer.id,
+              customerName: customer.name,
+              siteId: site?.id,
+              siteName: site?.name,
+              history: [
+                ...(targetEq.history || []),
+                {
+                  date: 'Aujourd’hui',
+                  event: `Vendu à ${customer.name} (Facture ${invoiceNum}) - Unité ${u + 1}/${item.quantity}`,
+                  operator: 'Amidou Ouedraogo',
+                },
+              ],
+            };
+
+            newMovements.push({
+              id: `MVT-S-${Date.now()}-${idx}-${u}`,
+              date: 'Aujourd’hui',
+              type: 'VENTE',
+              productId: product.id,
+              productName: product.name,
+              equipmentId: targetEq.id,
+              serialNumber: targetEq.serialNumber,
+              quantity: 1,
+              unit: product.unit,
+              sourceLocation: 'Dépôt Central Somgandé',
+              destLocation: customer.name + (site ? ` (${site.name})` : ''),
+              reference: invoiceNum,
+              operator: 'Amidou Ouedraogo',
+              comment: `Sortie vente équipement sérialisé ${targetEq.serialNumber} (${u + 1}/${item.quantity})`,
+            });
+          } else {
+            // Auto-provision equipment instance if stock had fewer pre-registered rows
+            const newEqId = `eq-vnt-${Date.now()}-${idx}-${u}`;
+            const autoSerial = `SN-${product.reference}-${Math.floor(1000 + Math.random() * 9000)}-${u + 1}`;
+            const internalCode = `OKN-MAT-${String(updatedEquipments.length + 1).padStart(5, '0')}`;
+            allocatedIds.push(newEqId);
+            allocatedSerials.push(autoSerial);
+
+            const newEq: Equipment = {
+              id: newEqId,
+              productId: product.id,
+              productName: product.name,
+              category: product.category,
+              serialNumber: autoSerial,
+              macAddress: `00:1B:63:${Math.floor(10 + Math.random() * 89)}:${Math.floor(10 + Math.random() * 89)}:${u + 1}`,
+              internalCode,
+              status: 'VENDU',
+              lifecycleStep: 4,
+              location: customer.name + (site ? ` (${site.name})` : ''),
+              costPrice: product.costPrice,
+              purchaseDate: new Date().toLocaleDateString('fr-FR'),
+              warranty: '12 mois',
+              customerId: customer.id,
+              customerName: customer.name,
+              siteId: site?.id,
+              siteName: site?.name,
+              history: [
+                {
+                  date: 'Aujourd’hui',
+                  event: `Vendu à ${customer.name} (Facture ${invoiceNum}) - Unité ${u + 1}/${item.quantity}`,
+                  operator: 'Amidou Ouedraogo',
+                },
+              ],
+            };
+            updatedEquipments.unshift(newEq);
+
+            newMovements.push({
+              id: `MVT-S-${Date.now()}-${idx}-${u}`,
+              date: 'Aujourd’hui',
+              type: 'VENTE',
+              productId: product.id,
+              productName: product.name,
+              equipmentId: newEqId,
+              serialNumber: autoSerial,
+              quantity: 1,
+              unit: product.unit,
+              sourceLocation: 'Dépôt Central Somgandé',
+              destLocation: customer.name + (site ? ` (${site.name})` : ''),
+              reference: invoiceNum,
+              operator: 'Amidou Ouedraogo',
+              comment: `Sortie vente équipement sérialisé ${autoSerial} (${u + 1}/${item.quantity})`,
+            });
+          }
         }
       }
 
@@ -573,15 +639,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unit: product.unit,
         unitPrice: item.unitPrice,
         unitCost: product.costPrice,
-        equipmentId: item.equipmentId,
+        equipmentId: allocatedIds[0] || item.equipmentId,
+        serialNumber: allocatedSerials[0],
+        equipmentIds: allocatedIds.length > 0 ? allocatedIds : undefined,
+        serialNumbers: allocatedSerials.length > 0 ? allocatedSerials : undefined,
       };
     });
 
-    const vat = Math.round(subtotal * 0.18);
-    const totalTTC = subtotal + vat;
-    const margin = subtotal - totalCost;
-    const marginRate = subtotal > 0 ? Number(((margin / subtotal) * 100).toFixed(1)) : 0;
+    // 4. NOUVEAU CALCUL D'UNE VENTE SANS TVA
+    const totalAmount = subtotal;
+    const margin = totalAmount - totalCost;
+    const marginRate = totalAmount > 0 ? Number(((margin / totalAmount) * 100).toFixed(1)) : 0;
     const payStatus = data.paymentStatus || 'Payée';
+    const depositPaid = data.depositPaid;
+    const remainingDue = payStatus === 'Partiel'
+      ? Math.max(0, totalAmount - (depositPaid || 0))
+      : (payStatus === 'Payée' ? 0 : totalAmount);
 
     const newSale: Sale = {
       id: saleId,
@@ -592,17 +665,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       siteName: site?.name,
       date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }),
       subtotal,
-      vat,
-      totalTTC,
+      totalAmount,
       totalCost,
       margin,
       marginRate,
       paymentStatus: payStatus,
-      depositPaid: data.depositPaid,
+      depositPaid,
+      remainingDue,
       items: saleItems,
     };
 
-    // Create FAC document
+    // Create FAC document without any TVA
     const invoiceDoc: AppDocument = {
       id: invoiceNum,
       type: 'FAC',
@@ -612,7 +685,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       siteName: site?.name,
       date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }),
       status: payStatus,
-      totalAmount: totalTTC,
+      totalAmount,
       technicianVisa: {
         name: 'Amidou Ouedraogo',
         title: "Responsable Commercial ON'Konnect",
@@ -630,8 +703,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (c.id === customer.id) {
         return {
           ...c,
-          totalBilled: c.totalBilled + totalTTC,
-          balance: payStatus !== 'Payée' ? c.balance + (totalTTC - (data.depositPaid || 0)) : c.balance,
+          totalBilled: c.totalBilled + totalAmount,
+          balance: payStatus !== 'Payée' ? c.balance + remainingDue : c.balance,
           unpaidInvoiceRef: payStatus !== 'Payée' ? invoiceNum : c.unpaidInvoiceRef,
         };
       }

@@ -5,15 +5,14 @@ export const ReportsPage: React.FC = () => {
   const { products, sales, purchases } = useApp();
   const [period, setPeriod] = useState<'month' | 'q1' | 'year'>('month');
 
-  // Compute stats
+  // Compute stats (Section 4: No TVA)
   const totalStockValue = products.reduce((acc, p) => acc + p.currentStock * p.costPrice, 0);
   const totalPurchasesAmount = purchases.reduce((acc, p) => acc + p.totalAmount, 0) || 28500000;
-  const totalSalesRevenue = sales.reduce((acc, s) => acc + s.totalTTC, 0) || 18400000;
+  const totalSalesRevenue = sales.reduce((acc, s) => acc + s.totalAmount, 0) || 18400000;
   const totalSalesMargin = sales.reduce((acc, s) => acc + s.margin, 0);
-  const totalSalesSubtotal = sales.reduce((acc, s) => acc + s.subtotal, 0);
   const marginPercentage =
-    totalSalesSubtotal > 0
-      ? ((totalSalesMargin / totalSalesSubtotal) * 100).toFixed(1)
+    totalSalesRevenue > 0
+      ? ((totalSalesMargin / totalSalesRevenue) * 100).toFixed(1)
       : '32.4';
 
   const handleExportCSV = () => {

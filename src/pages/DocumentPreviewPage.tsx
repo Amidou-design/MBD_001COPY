@@ -111,7 +111,7 @@ export const DocumentPreviewPage: React.FC = () => {
         {document.totalAmount && (
           <div className="mb-4 bg-[#EEF4FF] rounded-lg p-3 border border-[#002452]/20 flex items-center justify-between">
             <span className="font-display font-bold text-xs text-[#002452]">
-              Montant Total ({document.type === 'DEV' ? 'Devisé' : 'Facturé TTC'}) :
+              Montant Total ({document.type === 'DEV' ? 'Devisé' : 'Facturé'}) :
             </span>
             <span className="font-display font-bold text-base text-[#002452]">
               {document.totalAmount.toLocaleString('fr-FR')} FCFA

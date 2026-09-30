@@ -100,6 +100,8 @@ export interface SaleItem {
   unitCost: number;
   equipmentId?: string;
   serialNumber?: string;
+  equipmentIds?: string[];
+  serialNumbers?: string[];
 }
 
 export interface Sale {
@@ -111,13 +113,13 @@ export interface Sale {
   siteName?: string;
   date: string;
   subtotal: number;
-  vat: number; // 18%
-  totalTTC: number;
+  totalAmount: number;
   totalCost: number;
   margin: number;
   marginRate: number; // in %
   paymentStatus: 'Payée' | 'Partiel' | 'En retard' | 'Devis validé';
   depositPaid?: number;
+  remainingDue?: number;
   items: SaleItem[];
 }
 
