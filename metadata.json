@@ -1,0 +1,6 @@
+{
+  "name": "ON'Konnect Manager",
+  "description": "Application PWA complète de gestion opérationnelle, équipements, stocks, ventes, interventions et installations pour ON'Konnect.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
